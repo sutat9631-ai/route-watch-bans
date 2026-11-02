@@ -105,6 +105,34 @@ def status(n, today):
         return "active" if start <= today else "upcoming"
     return "standing"
 
+def manual_notices(today, errors):
+    """bans that are not in the gazette (signs, a police station's own notice): manual.json, kept by hand.
+    Each: id, title, province, amphoe, kind (truck|closure), vehicles {pickup,t6,t10,trailer,container}, windows, periods,
+    segments [{road, from_text?, to_text?}], source (who / where it was seen), added. Lines are found like the gazette's."""
+    f = os.path.join(HERE, "manual.json")
+    if not os.path.exists(f): return []
+    out = []
+    try: items = json.load(open(f, encoding="utf8"))
+    except Exception as e: errors.append(f"manual.json: {e}"); return []
+    for m in items:
+        try:
+            n = {"id": "m-" + str(m["id"]), "title": m["title"], "published": m.get("added", today), "url": m.get("url", ""), "scope": "จังหวัด",
+                 "province": m.get("province"), "kind": m.get("kind", "truck"), "vehicles": m["vehicles"], "hazmat": False, "oil": False,
+                 "periods": m.get("periods", []), "standing": not m.get("periods"), "windows": m.get("windows", []), "manual": True,
+                 "source": m.get("source", ""), "summary": m.get("note", ""), "segments": []}
+            for sg in m.get("segments", []):
+                sg = dict(sg)
+                if not sg.get("geo"): sg["geo"] = geocode.place_segment(sg, m.get("province"), m.get("amphoe"))
+                if sg.get("geo") and sg.pop("whole", False): sg["geo"]["approx"] = False; sg["geo"]["how"] = "ทั้งสาย (ตามป้าย)"   # the sign bans the whole road
+                n["segments"].append(sg)
+            n["placed"] = sum(1 for sg in n["segments"] if sg.get("geo"))
+            n["bbox"] = geocode.area_bbox(m.get("province"), m.get("amphoe")) if m.get("province") else None
+            n["status"] = status(n, today)
+            if n["status"] != "expired": out.append(n)
+        except Exception as e: errors.append(f"manual {m.get('id')}: {e}")
+    geocode.save_cache()
+    return out
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--months", type=int, default=36); ap.add_argument("--out", default=os.path.join(HERE, "out", "bans.json"))
     a = ap.parse_args(); today = datetime.date.today(); ts = today.isoformat()
@@ -147,6 +175,7 @@ def main():
         o["summary"] = summary(n)
         for s in o["segments"]: s.pop("geo_err", None)
         out.append(o)
+    out += manual_notices(ts, errors)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     res = {"updated": datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=7))).isoformat(timespec="minutes"), "source": "ราชกิจจานุเบกษา (open-law-data-thailand/soc-ratchakitcha)",
            "months": a.months, "checked": len(hits), "notices": out, "errors": errors[:20]}
