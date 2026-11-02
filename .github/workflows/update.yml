@@ -1,0 +1,35 @@
+# Route Watch — truck bans from the Royal Gazette, twice a day.
+# Publishes bans.json on GitHub Pages (Settings → Pages → Source: GitHub Actions); put its link in Route Watch → ตั้งค่า.
+# GitHub e-mails the repo owner when a run fails.
+name: update-bans
+on:
+  schedule:
+    - cron: "30 0,12 * * *"   # 07:30 and 19:30 Thai time
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+concurrency: { group: bans, cancel-in-progress: false }
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4   # monthly title lists and PDFs already read: not downloaded again
+        with: { path: "data/meta\ndata/pdf", key: "gazette-${{ github.run_id }}", restore-keys: "gazette-" }
+      - name: Read the gazette
+        env: { RW_UA: "RouteWatch-gazette/1.0 (github.com/${{ github.repository }})" }
+        run: python run.py --months 36 --out site/bans.json
+      - name: Keep what was read (next run only reads new notices)
+        run: |
+          git config user.name "bans-bot"; git config user.email "bans-bot@users.noreply.github.com"
+          git add data/notices data/geocache.json
+          git diff --cached --quiet || git commit -m "bans: $(date -u +%F)" && git push
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - uses: actions/deploy-pages@v4
