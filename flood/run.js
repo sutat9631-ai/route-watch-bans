@@ -35,6 +35,7 @@ const SOURCES = { hdms: RW.fetchHDMS, thaiwater: RW.fetchThaiWater, longdo: RW.f
       sources[id] = { ok: true, at: Date.now(), ms: Date.now() - t0, result };
       console.log(`${id}: ok ${(result.points || []).length + (result.roads || []).length} items in ${Date.now() - t0} ms`);
     } catch (e) {
+      if (e.cause) e = new Error(`${e.message}: ${e.cause.code || ""} ${e.cause.message || ""}`.trim());   // "fetch failed" alone says nothing
       // a source that failed this round: the last good copy (up to 12 h) stays in the file, marked with its own time
       const old = prev && prev.sources && prev.sources[id];
       const keep = old && old.ok && Date.now() - old.at < 12 * 3600e3;
