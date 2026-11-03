@@ -3,8 +3,9 @@
  *
  * item  { src, official, lat, lng, levelCm|null, passable: true|false|null, time|null, title }
  * event { lat, lng, levelCm, passable, status, sources:[item…], veh:{ pickup:"ok"|"warn"|"stop"|"?", … } }
- * status: "confirmed" = a fresh official report, or 2+ different sources agree
- *         "pending"   = one fresh source that is not official
+ * status: "confirmed" = a fresh official report, a fresh sensor reading (a measured depth, not a report), or
+ *                       2+ different sources agree; `basis` says which: "official" | "sensor" | "sources"
+ *         "pending"   = one fresh source that is only a report (Longdo)
  *         "conflict"  = fresh water levels more than 20 cm apart
  *         "stale"     = every report is older than its source's life time
  */
@@ -18,7 +19,7 @@
   /* how much a source counts and how long one report stays fresh */
   RW.FLOOD_SRC = {
     hdms: { w: 0.9, ttlH: 12, official: true, name: "กรมทางหลวง" },
-    thaiwater: { w: 0.8, ttlH: 2, official: false, name: "เซนเซอร์ สสน." },
+    thaiwater: { w: 0.8, ttlH: 2, official: false, measured: true, name: "เซนเซอร์ สสน." },
     longdo: { w: 0.4, ttlH: 12, official: false, name: "Longdo" },
   };
   RW.FLOOD_MERGE_KM = 0.5;
@@ -64,11 +65,13 @@
     const pass = use.filter((i) => i.passable != null).sort((a, b) => (b.time || 0) - (a.time || 0));
     const passable = pass.length ? pass[0].passable : null;
     const lv = live.filter((i) => i.levelCm != null).map((i) => i.levelCm), srcs = new Set(live.map((i) => i.src));
+    const measured = live.some((i) => (RW.FLOOD_SRC[i.src] || {}).measured && i.levelCm != null);
     const status = !live.length ? "stale" : lv.length > 1 && Math.max(...lv) - Math.min(...lv) > RW.FLOOD_CONFLICT_CM ? "conflict"
-      : live.some((i) => i.official) || srcs.size >= 2 ? "confirmed" : "pending";
+      : live.some((i) => i.official) || measured || srcs.size >= 2 ? "confirmed" : "pending";
+    const basis = status !== "confirmed" ? "" : live.some((i) => i.official) ? "official" : srcs.size >= 2 ? "sources" : "sensor";
     const at = byLvl[0] || use.find((i) => !i.approx) || use[0];
     const latest = Math.max(0, ...items.map((i) => i.time || 0)) || null;
-    return { lat: at.lat, lng: at.lng, levelCm, levels: lv, passable, status, latest, sources: items, veh: RW.vehFlood(levelCm, passable) };
+    return { lat: at.lat, lng: at.lng, levelCm, levels: lv, passable, status, basis, latest, sources: items, veh: RW.vehFlood(levelCm, passable) };
   };
 
   /* items → events: reports within FLOOD_MERGE_KM of each other (single link) are one place */
@@ -83,7 +86,10 @@
     return groups.map((g) => RW.floodEvent(g, now));
   };
 
-  RW.FLOOD_STATUS = { confirmed: "ยืนยันแล้ว", pending: "รอยืนยัน (แหล่งเดียว)", conflict: "ข้อมูลขัดแย้ง", stale: "ข้อมูลเก่า" };
+  RW.FLOOD_STATUS = { confirmed: "ยืนยันแล้ว", pending: "รอยืนยัน (มีรายงานแหล่งเดียว)", conflict: "ข้อมูลขัดแย้ง", stale: "ข้อมูลเก่า" };
+  /* the status as one short phrase, saying what it rests on */
+  RW.floodStatusText = (e) => e.status !== "confirmed" ? RW.FLOOD_STATUS[e.status]
+    : e.basis === "official" ? "กรมทางหลวงยืนยัน" : e.basis === "sensor" ? "เซนเซอร์วัดได้จริง" : `ยืนยันแล้ว ${new Set(e.sources.map((s) => s.src)).size} แหล่ง`;
   /* "ห้ามผ่าน: กระบะ · ระวัง: 6 ล้อ, ตู้ · ผ่านได้: 10 ล้อ, เทรลเลอร์" */
   RW.vehFloodText = function (veh) {
     const names = { pickup: "กระบะ", t6: "6 ล้อ", t10: "10 ล้อ", trailer: "เทรลเลอร์", container: "ตู้" };
