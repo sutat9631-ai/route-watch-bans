@@ -28,8 +28,11 @@ jobs:
       - name: Keep what was read (next run only reads new notices)
         run: |
           git config user.name "bans-bot"; git config user.email "bans-bot@users.noreply.github.com"
-          git add data/notices data/geocache.json
-          git diff --cached --quiet || git commit -m "bans: $(date -u +%F)" && git push
+          cp site/bans.json published/bans.json
+          git add data/notices data/geocache.json published/bans.json
+          git diff --cached --quiet || { git commit -m "bans: $(date -u +%F)" && git pull --rebase && git push; }
+      - name: Keep flood.json on the site (the flood run rebuilds it every 15 min)
+        run: curl -fsS -m 30 "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/flood.json" -o site/flood.json || true
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }
       - uses: actions/deploy-pages@v4

@@ -22,3 +22,20 @@
 - ประกาศที่ไม่ลงราชกิจจาฯ (เช่น โพสต์ Facebook ของ สภ.) ไม่มีในระบบ
 - ตำแหน่งบนแผนที่ที่ระบบหาเองอาจคลาดเคลื่อน ช่วงที่ปักแบบประมาณจะเตือนเป็นสีส้ม "อาจห้าม"
 - ข้อมูลที่ใช้: HuggingFace soc-ratchakitcha, ราชกิจจานุเบกษา, © OpenStreetMap (Nominatim/Valhalla), GADM 4.1, ฟอนต์ TH Sarabun PSK (SIPA)
+
+## Flood file (flood.json)
+
+`.github/workflows/flood.yml` runs every 15 minutes: `flood/run.js` fetches highway incidents from HDMS (กรมทางหลวง),
+ThaiWater road-flood sensors and Longdo flood reports, merges reports of the same place (within 500 m) into events
+with a status (ยืนยันแล้ว / รอยืนยัน / ขัดแย้ง / ข้อมูลเก่า) and a pass / take care / do not pass result per vehicle
+class, and publishes `flood.json` on GitHub Pages next to `bans.json`.
+
+- Route Watch reads `flood.json` while it is under 45 minutes old; otherwise each browser asks the source itself
+  (at most once an hour).
+- A source that fails one round keeps its last good copy in the file for up to 12 hours (`lastError` says why).
+- `flood/lib/` holds copies of the extension's `lib/sources.js`, `lib/flood.js` and `lib/geo.js`: copy them again
+  when the extension's readers change.
+- Both workflows publish the whole site: the bans run keeps the current `flood.json`, the flood run publishes the
+  bans run's last copy (`published/bans.json`).
+- Water depths per vehicle class (`RW.FLOOD_VEH` in `flood/lib/flood.js`) are starting values, to be confirmed by
+  the company's driving rules.

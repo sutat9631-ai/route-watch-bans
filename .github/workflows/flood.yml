@@ -1,0 +1,35 @@
+# Route Watch — the team's flood file, every 15 minutes.
+# Fetches HDMS (กรมทางหลวง), ThaiWater road sensors and Longdo once for everybody and publishes flood.json on GitHub
+# Pages next to bans.json (the bans run's last copy, published/bans.json, goes out with it). GitHub may start a
+# scheduled run some minutes late; the extension reads the file while it is under 45 minutes old.
+name: update-flood
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ["flood/**", ".github/workflows/flood.yml"]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: flood, cancel-in-progress: false }
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Last file (a source that fails keeps its previous copy for up to 12 h)
+        run: mkdir -p site && curl -fsS -m 30 "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/flood.json" -o site/flood.json.prev || true
+      - name: Fetch the sources
+        env: { RW_UA: "RouteWatch-flood/1.0 (github.com/${{ github.repository }})" }
+        run: node flood/run.js --out site/flood.json
+      - name: Keep bans.json on the site
+        run: cp published/bans.json site/bans.json && rm -f site/flood.json.prev
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - uses: actions/deploy-pages@v4
