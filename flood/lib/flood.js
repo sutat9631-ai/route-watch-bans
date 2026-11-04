@@ -92,7 +92,7 @@
     : e.basis === "official" ? "กรมทางหลวงยืนยัน" : e.basis === "sensor" ? "เซนเซอร์วัดได้จริง" : `ยืนยันแล้ว ${new Set(e.sources.map((s) => s.src)).size} แหล่ง`;
   /* "ห้ามผ่าน: กระบะ · ระวัง: 6 ล้อ, ตู้ · ผ่านได้: 10 ล้อ, เทรลเลอร์" */
   RW.vehFloodText = function (veh) {
-    const names = { pickup: "กระบะ", t6: "6 ล้อ", t10: "10 ล้อ", trailer: "เทรลเลอร์", container: "ตู้" };
+    const names = { pickup: "กระบะ", t6: "6 ล้อ", t10: "10 ล้อ", trailer: "เทรลเลอร์", container: "ตู้คอนเทนเนอร์" };
     const part = (v, label) => { const ks = Object.keys(names).filter((k) => veh[k] === v); return ks.length ? `${label}: ${ks.map((k) => names[k]).join(", ")}` : ""; };
     if (Object.values(veh).every((v) => v === "?")) return "ไม่ทราบระดับน้ำ";
     return [part("stop", "ห้ามผ่าน"), part("warn", "ระวัง"), part("ok", "ผ่านได้"), part("?", "ไม่ทราบ")].filter(Boolean).join(" · ");
