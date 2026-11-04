@@ -105,6 +105,7 @@
     return 5;
   };
 
+  RW.ROAD_KIND = { closed: "ถนนปิด", divert: "เบี่ยงจราจร", accident: "อุบัติเหตุ", breakdown: "รถเสีย" };   // Longdo road events (lib/sources.js)
   RW.STATUS = {
     flood: { label: "มีน้ำท่วม", fill: "rgba(211,58,44,0.30)", stroke: "#C0302B" },
     closed: { label: "ทางปิด", fill: "rgba(124,58,237,0.26)", stroke: "#6D28D9" },

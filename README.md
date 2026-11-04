@@ -32,6 +32,8 @@ class, and publishes `flood.json` on GitHub Pages next to `bans.json`.
 
 - Route Watch reads `flood.json` while it is under 45 minutes old; otherwise each browser asks the source itself
   (at most once an hour).
+- Longdo's road events ride along in `sources.longdo.result.roadEvents`: announced road closures, diversions / works,
+  accidents and broken-down vehicles still in force (or starting within 2 days), with their start and stop times.
 - A source that fails one round keeps its last good copy in the file for up to 12 hours (`lastError` says why).
 - `flood/lib/` holds copies of the extension's `lib/sources.js`, `lib/flood.js` and `lib/geo.js`: copy them again
   when the extension's readers change.

@@ -192,12 +192,36 @@
     return { points: [], areas, warnings: [] };
   };
 
-  /* 3) Longdo / iTIC traffic events – type 6 = flood (undocumented feed: opt-in, ask Longdo first) */
+  /* Longdo road events other than floods: 19 = road closed, 18 / 12 = diversion or lane closure (works), 3 = accident,
+     1 = broken-down vehicle. Each has a start and a stop (closures announced for days or years, accidents ~1 h).
+     Kept while in force or starting within 2 days. Positions are single points, often on a side street. */
+  RW.LONGDO_ROAD = { 19: "closed", 18: "divert", 12: "divert", 3: "accident", 1: "breakdown" };
+  RW.parseLongdoRoad = function (list, now) {
+    now = now || Date.now();
+    const out = [];
+    for (const e of list || []) {
+      const kind = RW.LONGDO_ROAD[String(e.type)]; if (!kind) continue;
+      const lat = parseFloat(e.latitude), lng = parseFloat(e.longitude);
+      if (!isFinite(lat) || !isFinite(lng)) continue;
+      const start = thaiTime(e.start), stop = thaiTime(e.stop);
+      if (!isFinite(start)) continue;
+      if (isFinite(stop) ? stop < now : now - start > 3 * H) continue;   // over (no stop: a short event, at most 3 h)
+      if (start > now + 48 * H) continue;
+      const desc = String(e.description || "").replace(/\s+/g, " ").trim();
+      const ag = desc.match(/^(.{2,40}?)\s*แจ้ง/);
+      out.push({ source: "Longdo / iTIC", kind, lat: +lat.toFixed(6), lng: +lng.toFixed(6), title: String(e.title || RW.ROAD_KIND[kind]).trim(),
+        detail: desc.slice(0, 220), agency: ag ? ag[1].trim() : "", start, stop: isFinite(stop) ? stop : start + 3 * H, approx: true,
+        moto: kind === "accident" && /รถจักรยานยนต์/.test(desc) && !/ไม่ใช่รถจักรยานยนต์/.test(desc) });
+    }
+    return out;
+  };
+
+  /* 3) Longdo / iTIC traffic events – type 6 = flood (undocumented feed: opt-in, ask Longdo first); road events too */
   RW.fetchLongdo = async function (ctx) {
     const maxAge = Math.max(1, Number((ctx && ctx.settings.maxAgeDays) || 3)) * 24 * H;
     const data = await getJSON("https://event.longdo.com/feed/json");
     const list = Array.isArray(data) ? data : data.data || data.events || [];
-    const now = Date.now(), out = [];
+    const now = Date.now(), out = [], roadEvents = RW.parseLongdoRoad(list, now);
     for (const e of list) {
       if (String(e.type) !== "6") continue;
       const lat = parseFloat(e.latitude), lng = parseFloat(e.longitude);
@@ -212,7 +236,7 @@
       out.push({ source: "Longdo / iTIC", lat, lng, title: e.title || "น้ำท่วม", detail: (e.description || "").slice(0, 200), level: "", time: isFinite(start) ? start : null,
         approx: true, by: String(e.contributor || "").slice(0, 40), roadText: rd ? rd[1] : "", kmText: km ? km[1] : "" });   // the feed gives a point only: shown as an approximate position
     }
-    return { points: out, areas: [], warnings: [] };
+    return { points: out, areas: [], warnings: [], roadEvents };
   };
 
   /* 4) ThaiWater road flood sensors (undocumented endpoint: opt-in, ask สสน. first).
@@ -449,7 +473,7 @@
     const r = Object.assign({ points: [], areas: [], warnings: [] }, s.result);
     const cm = (v) => { const n = parseFloat(String(v || "").replace(/[^\d.]/g, "")); return isFinite(n) ? n : 0; };
     if (id === "thaiwater") { const min = Number(settings.thresholdCm || 10); r.points = r.points.filter((p) => cm(p.level) >= min); }
-    if (id === "longdo") { const maxAge = Math.max(1, Number(settings.maxAgeDays || 3)) * 24 * H, now = Date.now(); r.points = r.points.filter((p) => p.time && now - p.time <= maxAge); }
+    if (id === "longdo") { const maxAge = Math.max(1, Number(settings.maxAgeDays || 3)) * 24 * H, now = Date.now(); r.points = r.points.filter((p) => p.time && now - p.time <= maxAge); r.roadEvents = (r.roadEvents || []).filter((e) => e.stop >= now); }
     return Object.assign(r, { via: "github", sourceAt: s.at || j.generated });
   };
   const viaGitHub = (id, direct) => async function (ctx) {
