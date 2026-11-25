@@ -32,4 +32,11 @@ jobs:
         run: cp published/bans.json site/bans.json && rm -f site/flood.json.prev
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }
-      - uses: actions/deploy-pages@v4
+      # GitHub sometimes cannot see the artifact just uploaded ("No artifacts named github-pages"): wait and try again
+      - id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - if: steps.deploy.outcome == 'failure'
+        run: sleep 45
+      - if: steps.deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v4
